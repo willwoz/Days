@@ -5,13 +5,13 @@
 
 static Window *s_window;
 static Layer *s_simple_bg_layer, *s_date_layer, *s_hands_layer;
-static TextLayer *s_day_label, *s_num_label, *s_count_label;
+static TextLayer *s_day_label, *s_num_label, *s_count_label, *s_battery_label;
 
 static GPath *s_tick_paths[NUM_CLOCK_TICKS];
 static GPath *s_minute_arrow, *s_hour_arrow;
 static GPath *s_triangle;
 
-static char s_num_buffer[4], s_day_buffer[6], s_count_buffer[10], s_date_buffer[10];
+static char s_num_buffer[4], s_day_buffer[6], s_count_buffer[10], s_date_buffer[10],s_battery_buffer[4];
 
 static int EVENT_MONTH = 11;
 static int EVENT_DAY = 8;
@@ -107,6 +107,19 @@ static void date_update_proc(Layer *layer, GContext *ctx) {
 
   snprintf (s_count_buffer,sizeof(s_count_buffer),"%d Days",difference);
   text_layer_set_text(s_count_label, s_count_buffer);
+  
+  BatteryChargeState charge_state = battery_state_service_peek();
+  if (charge_state.is_charging) {
+    snprintf(s_battery_buffer, sizeof(s_battery_buffer), "C");
+  } else {
+    if (charge_state.charge_percent<25) {
+      text_layer_set_text_color(s_battery_label, GColorRed);
+    } else {
+       text_layer_set_text_color(s_battery_label, GColorWhite);
+    }
+      
+    snprintf(s_battery_buffer, sizeof(s_battery_buffer), "%d%%", charge_state.charge_percent);
+  }
 }
 
 static void handle_second_tick(struct tm *tick_time, TimeUnits units_changed) {
@@ -133,7 +146,6 @@ static void window_load(Window *window) {
   text_layer_set_background_color(s_day_label, GColorBlack);
   text_layer_set_text_color(s_day_label, GColorWhite);
   text_layer_set_font(s_day_label, fonts_get_system_font(FONT_KEY_GOTHIC_18));
-
   layer_add_child(s_date_layer, text_layer_get_layer(s_day_label));
 
   s_count_label = text_layer_create(PBL_IF_ROUND_ELSE(
@@ -144,8 +156,17 @@ static void window_load(Window *window) {
   text_layer_set_background_color(s_count_label, GColorBlack);
   text_layer_set_text_color(s_count_label, GColorWhite);
   text_layer_set_font(s_count_label, fonts_get_system_font(FONT_KEY_GOTHIC_18));
-
   layer_add_child(s_date_layer, text_layer_get_layer(s_count_label));
+  
+  s_battery_label = text_layer_create(PBL_IF_ROUND_ELSE(
+    GRect(28, 77, 36, 20),
+    GRect(11, 77, 36, 20)));
+  text_layer_set_text_alignment(s_battery_label,GTextAlignmentCenter);
+  text_layer_set_text(s_battery_label, s_battery_buffer);
+  text_layer_set_background_color(s_battery_label, GColorBlack);
+  text_layer_set_text_color(s_battery_label, GColorWhite);
+  text_layer_set_font(s_battery_label, fonts_get_system_font(FONT_KEY_GOTHIC_14));
+  layer_add_child(s_date_layer, text_layer_get_layer(s_battery_label));
   
   s_hands_layer = layer_create(bounds);
   layer_set_update_proc(s_hands_layer, hands_update_proc);
@@ -158,7 +179,7 @@ static void window_unload(Window *window) {
 
   text_layer_destroy(s_day_label);
   text_layer_destroy(s_count_label);
-    
+  text_layer_destroy(s_battery_label);  
 
   layer_destroy(s_hands_layer);
 }
@@ -174,6 +195,7 @@ static void init() {
   s_day_buffer[0] = '\0';
   s_num_buffer[0] = '\0';
   s_num_buffer[0] = '\0';
+  s_battery_buffer[0] = '\0';
   
 
   // init hand paths
