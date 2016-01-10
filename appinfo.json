@@ -1,0 +1,22 @@
+{
+    "appKeys": {},
+    "capabilities": [
+        ""
+    ],
+    "companyName": "LeftSide",
+    "longName": "Day Counter",
+    "projectType": "native",
+    "resources": {
+        "media": []
+    },
+    "sdkVersion": "3",
+    "shortName": "Day Counter",
+    "targetPlatforms": [
+        "chalk"
+    ],
+    "uuid": "f5eb62c0-b646-4567-8f65-70880ba9a82b",
+    "versionLabel": "0.1",
+    "watchapp": {
+        "watchface": true
+    }
+}
