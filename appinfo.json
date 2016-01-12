@@ -7,15 +7,28 @@
     "longName": "Day Counter",
     "projectType": "native",
     "resources": {
-        "media": []
+        "media": [
+            {
+                "file": "images/glass-small.png",
+                "name": "IMAGE_BT_ICON_GLASS",
+                "targetPlatforms": [
+                    "aplite",
+                    "basalt",
+                    "chalk"
+                ],
+                "type": "bitmap"
+            }
+        ]
     },
     "sdkVersion": "3",
     "shortName": "Day Counter",
     "targetPlatforms": [
+        "aplite",
+        "basalt",
         "chalk"
     ],
     "uuid": "f5eb62c0-b646-4567-8f65-70880ba9a82b",
-    "versionLabel": "0.1",
+    "versionLabel": "0.5",
     "watchapp": {
         "watchface": true
     }

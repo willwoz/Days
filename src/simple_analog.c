@@ -5,17 +5,21 @@
 
 static Window *s_window;
 static Layer *s_simple_bg_layer, *s_date_layer, *s_hands_layer;
-static TextLayer *s_day_label, *s_num_label, *s_count_label, *s_battery_label;
+static TextLayer *s_day_label, *s_count_label, *s_battery_label, *s_bt_label;
+
+static BitmapLayer *s_background_layer, *s_bt_icon_layer;
+static GBitmap *s_background_bitmap, *s_bt_icon_bitmap;
+
 
 static GPath *s_tick_paths[NUM_CLOCK_TICKS];
 static GPath *s_minute_arrow, *s_hour_arrow;
 static GPath *s_triangle;
 
-static char s_num_buffer[4], s_day_buffer[6], s_count_buffer[10], s_date_buffer[10],s_battery_buffer[4];
+static char s_num_buffer[4], s_day_buffer[6], s_count_buffer[10], s_date_buffer[10],s_battery_buffer[4],s_bt_buffer[1];
 
 static int EVENT_MONTH = 11;
 static int EVENT_DAY = 8;
-static int EVENT_YEAR = 14;
+static int EVENT_YEAR = 114;
 static int EVENT_HOUR = 0;
 static int EVENT_MINUTE = 0;
 
@@ -27,8 +31,8 @@ static void bg_update_proc(Layer *layer, GContext *ctx) {
   graphics_context_set_fill_color(ctx, GColorBlack);
   graphics_fill_rect(ctx, layer_get_bounds(layer), 0, GCornerNone);
   
-  graphics_context_set_fill_color(ctx, GColorBlueMoon);
-  graphics_context_set_stroke_color(ctx, GColorBlueMoon);
+  graphics_context_set_fill_color(ctx, COLOR_FALLBACK(GColorBlueMoon,GColorWhite));
+  graphics_context_set_stroke_color(ctx, COLOR_FALLBACK(GColorBlueMoon,GColorWhite));
   gpath_draw_outline(ctx, s_triangle);
   
   graphics_context_set_fill_color(ctx, GColorWhite);
@@ -37,7 +41,7 @@ static void bg_update_proc(Layer *layer, GContext *ctx) {
     gpath_draw_filled(ctx, s_tick_paths[i]);
   }
   
-  graphics_context_set_fill_color(ctx, GColorRed);
+  graphics_context_set_fill_color(ctx, COLOR_FALLBACK(GColorRed,GColorWhite));
   for (; i < NUM_CLOCK_TICKS_RED; ++i) {
     gpath_move_to(s_tick_paths[i], GPoint(x_offset, y_offset));
     gpath_draw_filled(ctx, s_tick_paths[i]);
@@ -48,7 +52,7 @@ static void hands_update_proc(Layer *layer, GContext *ctx) {
   GRect bounds = layer_get_bounds(layer);
   GPoint center = grect_center_point(&bounds);
 
-  const int16_t second_hand_length = PBL_IF_ROUND_ELSE((bounds.size.w / 2) - 19, bounds.size.w / 2);
+//  const int16_t second_hand_length = PBL_IF_ROUND_ELSE((bounds.size.w / 2) - 19, bounds.size.w / 2);
 
   time_t now = time(NULL);
   struct tm *t = localtime(&now);
@@ -93,7 +97,7 @@ static void date_update_proc(Layer *layer, GContext *ctx) {
   // Set the current time
   seconds_now = p_mktime(now);
 	
-	now->tm_year = EVENT_YEAR + 100;
+	now->tm_year = EVENT_YEAR;
 	now->tm_mon = EVENT_MONTH - 1;
 	now->tm_mday = EVENT_DAY;
 	now->tm_hour = EVENT_HOUR;
@@ -103,7 +107,11 @@ static void date_update_proc(Layer *layer, GContext *ctx) {
 	seconds_event = p_mktime(now);
 	
 	// Determine the time difference
-	difference = ((((seconds_now - seconds_event) / 60) / 60) / 24);
+  if (seconds_now>seconds_event) {
+	  difference = ((((seconds_now - seconds_event) / 60) / 60) / 24);
+  } else {
+    difference = ((1+(((seconds_event - seconds_now) / 60) / 60) / 24));
+  }
 
   snprintf (s_count_buffer,sizeof(s_count_buffer),"%d Days",difference);
   text_layer_set_text(s_count_label, s_count_buffer);
@@ -125,6 +133,18 @@ static void date_update_proc(Layer *layer, GContext *ctx) {
 static void handle_second_tick(struct tm *tick_time, TimeUnits units_changed) {
   layer_mark_dirty(window_get_root_layer(s_window));
 }
+
+static void bluetooth_callback(bool connected) {
+  // Show icon if disconnected
+  // Show icon if disconnected
+  layer_set_hidden(bitmap_layer_get_layer(s_bt_icon_layer), connected);
+
+  if(!connected) {
+    // Issue a vibrating alert
+    vibes_double_pulse();
+  }
+}
+
 
 static void window_load(Window *window) {
   Layer *window_layer = window_get_root_layer(window);
@@ -159,18 +179,34 @@ static void window_load(Window *window) {
   layer_add_child(s_date_layer, text_layer_get_layer(s_count_label));
   
   s_battery_label = text_layer_create(PBL_IF_ROUND_ELSE(
-    GRect(28, 77, 36, 20),
-    GRect(11, 77, 36, 20)));
+    GRect(28, 80, 36, 20),
+    GRect(11, 80, 36, 20)));
   text_layer_set_text_alignment(s_battery_label,GTextAlignmentCenter);
   text_layer_set_text(s_battery_label, s_battery_buffer);
   text_layer_set_background_color(s_battery_label, GColorBlack);
   text_layer_set_text_color(s_battery_label, GColorWhite);
   text_layer_set_font(s_battery_label, fonts_get_system_font(FONT_KEY_GOTHIC_14));
   layer_add_child(s_date_layer, text_layer_get_layer(s_battery_label));
-  
+ 
+  // Create the Bluetooth icon GBitmap
+  s_bt_icon_bitmap = gbitmap_create_with_resource(RESOURCE_ID_IMAGE_BT_ICON_GLASS);
+
+  // Create the BitmapLayer to display the GBitmap
+  s_bt_icon_layer = bitmap_layer_create(PBL_IF_ROUND_ELSE(
+    GRect(125, 80, 20, 20),
+    GRect(108, 80, 20, 20)));
+  bitmap_layer_set_bitmap(s_bt_icon_layer, s_bt_icon_bitmap);
+  layer_add_child(window_layer, bitmap_layer_get_layer(s_bt_icon_layer));
+
   s_hands_layer = layer_create(bounds);
+  
+  bluetooth_callback(connection_service_peek_pebble_app_connection());
+
   layer_set_update_proc(s_hands_layer, hands_update_proc);
   layer_add_child(window_layer, s_hands_layer);
+  
+  // Show the correct state of the BT connection from the start
+  bluetooth_callback(connection_service_peek_pebble_app_connection());
 }
 
 static void window_unload(Window *window) {
@@ -179,9 +215,13 @@ static void window_unload(Window *window) {
 
   text_layer_destroy(s_day_label);
   text_layer_destroy(s_count_label);
-  text_layer_destroy(s_battery_label);  
+  text_layer_destroy(s_battery_label);
+  
+  gbitmap_destroy(s_bt_icon_bitmap);
+  bitmap_layer_destroy(s_bt_icon_layer);
 
   layer_destroy(s_hands_layer);
+ 
 }
 
 static void init() {
@@ -212,15 +252,21 @@ static void init() {
     s_tick_paths[i] = gpath_create(&ANALOG_BG_POINTS[i]);
   }
   
-  TRIANGLE_POINTS.points[0].x = bounds.size.w / 2;
-  TRIANGLE_POINTS.points[1].x = bounds.size.h * .11;
+  TRIANGLE_POINTS.points[0].x = bounds.size.w /2 ;
+  TRIANGLE_POINTS.points[1].x = bounds.size.w / 9;
   TRIANGLE_POINTS.points[1].y = bounds.size.h * .72;
-  TRIANGLE_POINTS.points[2].x = bounds.size.h * .88;
+  TRIANGLE_POINTS.points[2].x = (bounds.size.w * 8) / 9;
   TRIANGLE_POINTS.points[2].y = bounds.size.h * .72;
     
   s_triangle = gpath_create(&TRIANGLE_POINTS);
 
   tick_timer_service_subscribe(MINUTE_UNIT, handle_second_tick);
+ 
+  // Register for Bluetooth connection updates
+  connection_service_subscribe((ConnectionHandlers) {
+  .pebble_app_connection_handler = bluetooth_callback
+});
+
 }
 
 static void deinit() {
